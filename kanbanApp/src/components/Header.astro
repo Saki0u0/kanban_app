@@ -1,0 +1,66 @@
+---
+import "@fontsource/henny-penny";
+import { Icon } from "astro-icon/components";
+---
+
+<header class="flex flex-col text-white pt-10 px-4 pb-6 grid-cols-1 gap-6 bg-[url('/illust.svg')] bg-no-repeat bg-left-bottom md:container md:flex-row md:mx-auto md:py-12 md:items-center md:[background-position-y:calc(100%+8px)]">
+  <h1 id = "headerTitle" class="font-henny text-4xl md:col-start-2 md:col-end-3">OO's To Do List</h1>
+  <button class="flex gap-2 items-center order-1 justify-self-end ml-auto md:order-2 md:justify-self-start md:flex-1 md:ml-0" id="add-column-button">
+    <Icon name="mdi:plus" />
+    Add column
+  </button>
+  <div class="relative order-0 md:order-las md:order-2 md:min-w-[300px] lg:min-w-[480px] ">
+    <input class="p-4 ps-10 rounded-full text-black w-full overflow-hidden md:px-4 " type="text" placeholder="Hinted search text">
+    <div class="absolute top-4 right-3 flex items-center ps-3 pointer-events-none bg-white" id="searchBar">
+      <Icon name="mdi:search" class="w-6 h-6 text-gray-500"/>
+    </div>
+    <p class="h-4 text-white text-xs mt-2"></p>
+  </div>
+</header>
+
+<script>
+  import { TaskContext } from "../lib/taskStore";
+  import type { Task } from "../lib/task";
+
+  const taskContext = TaskContext.getInstance();
+  
+  // add columns
+  const addColumnButton = document.getElementById("add-column-button");
+  if (!addColumnButton) throw new Error("add-column-button not found");
+  addColumnButton.addEventListener("click", () => {
+    taskContext.addColumn("New Column");
+  });
+
+  // search
+  const searchEl = document.querySelector('input');
+  if(!searchEl) throw new Error(`search input is not found`)
+  function handleResultText(tasks: Task[]) {
+    const pEl = document.querySelector('p')! as HTMLParagraphElement;
+    if(tasks.length === 0) {
+      pEl.textContent = "No result. Please try different search terms.";
+    } else {
+      pEl.textContent = "";
+    }
+  }
+
+  searchEl.addEventListener('input', (e) => {
+    const keyword = (e.target as HTMLInputElement).value;
+    taskContext.updateFilter(keyword)
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if(e.code === 'delete') {
+      const keyword = ''
+      taskContext.updateFilter(keyword)
+    } 
+  })
+
+
+  // // taskContext.addListener(noResult)
+  taskContext.addListener(() => {
+    const columns = taskContext.getColumns()
+    const tasks = columns.map(column => column.tasks).flat()
+    handleResultText(tasks)
+  })
+
+</script>

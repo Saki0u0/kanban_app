@@ -1,0 +1,349 @@
+<div
+  class="modal-wrapper items-center justify-center min-h-screen hidden place-items-center opacity-0 transition-opacity duration-300 ease-in-out fixed bg-black bg-opacity-50 w-full h-full z-50 overflow-auto left-0 top-0"
+>
+  <div
+    class="modal flex flex-col gap-6 relative p-5 pt-14 justify-between rounded-3xl border border-black border-solid mx-auto my-[14%] w-full bg-white transform scale-95 transition-transform duration-300 ease-in-out md:w-2/3 md:p-8 md:pt-14 md:flex-row md:container lg:p-20 md:gap-4 md:my-auto"
+  >
+    <button
+      class="close absolute top-3 left-5 bg-transparent border-none text-black text-3xl cursor-pointer md:top-4"
+      >&times;</button
+    >
+
+    <div class="description md:max-w-[50%] lg:max-w-[70%]">
+      <div>
+        <h1
+          class="text-3xl mb-4 md:mb-8 focus:outline-none px-2 py-0.5 rounded-md focus:bg-[#F0F0F0]"
+          id="title"
+          contenteditable="true"
+        >
+        </h1>
+        <p
+          class="focus:outline-none px-2 py-0.5 rounded-md focus:bg-[#F0F0F0]"
+          id="description"
+          contenteditable="true"
+        >
+        </p>
+      </div>
+      <div class="flex gap-2 pt-2 mt-4">
+        <div id="assigneeDiv" class="flex gap-2"></div>
+        <div class="modalAssignee" id="addAssigneeDiv"></div>
+      </div>
+
+    </div>
+    <div class="menu flex flex-col">
+      <div class="status flex items-center pb-4 pl-1">
+        <img src="/Flag.svg" alt="flag" class="h-6 pr-2 w-6" />
+        <p class="pr-4">Status:</p>
+        <select
+          id="taskStatus"
+          name="taskStatus"
+          class="p-1 rounded focus:outline-none"
+        >
+        </select>
+      </div>
+      <p class="flex items-center">
+        <button id="deleteButton" class="flex items-center text-red-600">
+          <span class="pr-2 absolute top-5 right-5 md:relative md:top-0 md:right-0">
+            <img src="/delete.svg" alt="delete" class="w-8 h-8 md:w-6 md:h-6 " />
+          </span>
+          <span class="hidden  md:block">
+            Delete
+          </span>
+        </button>
+      </p>
+      <img src="/pumpkin.png" alt="pumpkin" class="w-48 pt-12 self-end" />
+    </div>
+  </div>
+</div>
+
+
+<script>
+  import { TaskContext } from "../lib/taskStore";
+  import { TaskModalContext } from "../lib/taskModaStore";
+  import { getUnassignedAssignee, type Assignee } from "../lib/assignee";
+
+  const taskModalContext = TaskModalContext.getInstance();
+  const taskContext = TaskContext.getInstance();
+
+  function updateModal() {
+    const modalWrapper = document.querySelector(".modal-wrapper");
+    if (!modalWrapper) return;
+    const isOpen = taskModalContext.getIsOpen();
+    //modalWrapper.classList.toggle("hidden", !isOpen);
+
+    if (isOpen) {
+      modalWrapper.classList.remove("hidden");
+      modalWrapper.classList.add("flex");
+      //@ts-ignore force reflow
+      void modalWrapper.offsetWidth;
+      modalWrapper.classList.add("opacity-100");
+      modalWrapper.classList.add("scale-100");
+      modalWrapper.setAttribute(
+        "column-label",
+        taskModalContext.getColumnLabel()
+      );
+      modalWrapper.setAttribute("task-id", taskModalContext.getTaskId());
+      document.body.style.overflow = "hidden";
+      addCloseListeners();
+      setUpModalContent();
+    } else {
+      modalWrapper.classList.remove("opacity-100");
+      modalWrapper.classList.remove("scale-100");
+      setTimeout(() => {
+        modalWrapper.classList.add("hidden");
+      }, 300);
+
+      document.body.style.overflow = "";
+      removeCloseListeners();
+    }
+  }
+
+  function setUpModalContent() {
+    const title = document.getElementById("title");
+    const description = document.getElementById("description");
+    const columnLabel = taskModalContext.getColumnLabel()
+    const task = taskContext.getTask(
+      parseInt(taskModalContext.getTaskId()),
+      columnLabel
+    );
+    const assigneeDiv = document.getElementById("assigneeDiv");
+    const addAssigneeDiv = document.getElementById("addAssigneeDiv");
+
+    if (title) title.innerHTML = task?.title || "";
+    if (description) description.innerHTML = task?.description || "";
+    if (assigneeDiv) assigneeDiv.innerHTML = "";
+    if (addAssigneeDiv) addAssigneeDiv.innerHTML = "";
+
+    task?.assignees.forEach(assignee => {
+      const assigneeDivItem = document.createElement("div");
+      assigneeDivItem.className = "task-item  w-10 h-10 rounded-full border border-gray-700 flex items-center justify-center relative group";
+  
+      assigneeDivItem.innerHTML = `
+        <img src="${assignee.src}" alt="${assignee.name}" class="w-6 h-6" />
+        <button class="remove-assignee-icon absolute -top-2 -right-2 bg-white rounded-full p-0.5 hidden group-hover:block" data-task-id="${task.id}" data-column-label="${columnLabel}">
+          <img src="/close.svg" alt="remove" class="w-4 h-4" />
+        </button>
+      `;
+
+      if (assigneeDiv) assigneeDiv.appendChild(assigneeDivItem);
+    });
+
+    const unassignedAssignees = task?.assignees ? getUnassignedAssignee(task.assignees): [];
+
+    if (unassignedAssignees.length > 0) {
+      const addAssigneeItem = document.createElement("div");
+      addAssigneeItem.innerHTML = `
+        <div class="task-id w-10 h-10 rounded-full border border-gray-700 flex items-center justify-center relative" data-task-id="${task?.id}" data-column-label="${columnLabel}">
+          <button class="add-assignee-icon">
+            <img src="/plus.svg" alt="add" class="w-6 h-6" />
+          </button>
+          <div class="add-assignee-dropdown hidden absolute top-full left-0 mt-2 w-32 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+            <ul>
+              ${unassignedAssignees?.map((assignee) => `
+                <li class="px-4 py-2 hover:bg-gray-100 cursor-pointer" data-assignee="${assignee.name}">
+                  <img src="${assignee.src}" alt="${assignee.name}" class="w-4 h-4 inline-block mr-2" />
+                  ${assignee.name}
+                </li>
+              `
+                )
+                .join("")}
+            </ul>
+          </div>
+        </div>
+      `
+      addAssigneeDiv?.appendChild(addAssigneeItem)
+    }
+
+    setupStatusSelect();
+
+    // Event listeners
+    title?.addEventListener("blur", () => {
+      taskContext.editTask(
+        taskModalContext.getColumnLabel(),
+        parseInt(taskModalContext.getTaskId()),
+        title?.innerHTML || "",
+        description?.innerHTML || ""
+      );
+    });
+
+    title?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        title.blur();
+      }
+    });
+
+    description?.addEventListener("blur", () => {
+      taskContext.editTask(
+        taskModalContext.getColumnLabel(),
+        parseInt(taskModalContext.getTaskId()),
+        title?.innerHTML || "",
+        description?.innerHTML || ""
+      );
+    });
+
+    description?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        description.blur();
+      }
+    });
+
+    // remove assignee 
+    const removeAssigneeIcons = document.querySelectorAll(".modal .remove-assignee-icon") as NodeListOf<HTMLElement>;
+    removeAssigneeIcons.forEach((icon) => {
+      icon.addEventListener("click", () => {
+        const taskId = icon.getAttribute("data-task-id");
+        const columnLabel = icon.getAttribute("data-column-label");
+        const assigneeName = icon.parentElement?.querySelector("img")?.alt;
+        taskContext.removeAssignee(
+          Number(taskId ?? ""),
+          columnLabel ?? "",
+          assigneeName as Assignee["name"]
+        );
+        setUpModalContent();
+        setupAssigneeDropdown();
+      });
+    });
+
+
+    // Delete button
+    const deleteButton = document.getElementById("deleteButton");
+    if (deleteButton) {
+      deleteButton.addEventListener("click", () => {
+        taskContext.deleteTask(
+          parseInt(taskModalContext.getTaskId()),
+          taskModalContext.getColumnLabel()
+        );
+        closeModal();
+      });
+    }
+  }
+
+  function setupAssigneeDropdown() {
+    const addAssigneeIcons = document.querySelectorAll(".modal .add-assignee-icon");
+    addAssigneeIcons.forEach((icon) => {
+      icon.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const dropdown = icon.nextElementSibling;
+        if (!dropdown) return;
+        dropdown.classList.toggle("hidden");
+      });
+    });
+
+    const assigneeOptions = document.querySelectorAll(
+      ".modal .add-assignee-dropdown li[data-assignee]"
+    );
+
+    assigneeOptions.forEach((option) => {
+      if (!option) return;
+      option?.addEventListener("click", () => {
+        const taskId = option
+          .closest(".task-id")
+          ?.getAttribute("data-task-id");
+        const columnLabel = option
+          .closest(".task-id")
+          ?.getAttribute("data-column-label");
+        const assigneeName = option.getAttribute("data-assignee");
+
+        taskContext.addAssignee(
+          Number(taskId ?? ""),
+          columnLabel ?? "",
+          assigneeName as Assignee["name"]
+        );
+        setUpModalContent();
+        setupAssigneeDropdown();
+
+        option.closest(".add-assignee-dropdown")?.classList.add("hidden");
+      });
+    });
+
+    
+
+    // ドロップダウン外をクリックしたら閉じる
+    document.addEventListener("click", () => {
+      document
+        .querySelectorAll(".add-assignee-dropdown")
+        .forEach((dropdown) => {
+          dropdown.classList.add("hidden");
+        });
+    });
+  }
+
+
+
+  function setupStatusSelect() {
+    // Set status
+    // options をクリア
+    const statusSelect = document.getElementById("taskStatus");
+    if (statusSelect) statusSelect.innerHTML = "";
+
+    const statusOptions = taskContext.getLabels();
+    // current labelを取り除いて先頭に追加
+    statusOptions.splice(
+      statusOptions.indexOf(taskModalContext.getColumnLabel()),
+      1
+    );
+    statusOptions.unshift(taskModalContext.getColumnLabel());
+    if (statusSelect) {
+      // create options
+      statusOptions.forEach((option) => {
+        const optionEl = document.createElement("option");
+        optionEl.value = option;
+        optionEl.textContent = option;
+        statusSelect.appendChild(optionEl);
+      });
+    }
+
+    statusSelect?.addEventListener("change", (event) => {
+      const target = event.target as HTMLSelectElement;
+      if (target.value === taskModalContext.getColumnLabel()) return;
+
+      taskContext.updateTaskLabel(
+        parseInt(taskModalContext.getTaskId()),
+        taskModalContext.getColumnLabel(),
+        target.value
+      );
+    });
+  }
+
+  function closeModal() {
+    taskModalContext.closeModal();
+  }
+
+  function addCloseListeners() {
+    const modalWrapper = document.querySelector(".modal-wrapper");
+    const closeButton = document.querySelector(".close");
+
+    if (modalWrapper) {
+      modalWrapper.addEventListener("click", handleOutsideClick);
+    }
+    if (closeButton) {
+      closeButton.addEventListener("click", closeModal);
+    }
+  }
+
+  function removeCloseListeners() {
+    const modalWrapper = document.querySelector(".modal-wrapper");
+    const closeButton = document.querySelector(".close");
+
+    if (modalWrapper) {
+      modalWrapper.removeEventListener("click", handleOutsideClick);
+    }
+    if (closeButton) {
+      closeButton.removeEventListener("click", closeModal);
+    }
+  }
+
+  function handleOutsideClick(event: Event) {
+    if (
+      event.target &&
+      (event.target as HTMLElement).classList.contains("modal-wrapper")
+    ) {
+      closeModal();
+    }
+  }
+
+  taskModalContext.addListener(updateModal);
+  taskModalContext.addListener(setupAssigneeDropdown);
+</script>

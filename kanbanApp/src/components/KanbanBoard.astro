@@ -1,0 +1,328 @@
+---
+import "@fontsource/henny-penny";
+---
+
+<div class="flex gap-4 px-6 pb-10 lg:flex-1 lg:mx-auto">
+  <div id="task-list" class="flex flex-col gap-4 w-full md:flex-row">
+    <!-- タスクリストがここに表示されます -->
+  </div>
+</div>
+
+<script>
+  import Sortable from "sortablejs";
+  import { TaskContext } from "../lib/taskStore";
+  import { TaskModalContext } from "../lib/taskModaStore";
+  import { getUnassignedAssignee, type Assignee } from "../lib/assignee";
+
+  // タスクコンテキスト
+  const taskContext = TaskContext.getInstance();
+  const taskModalContext = TaskModalContext.getInstance();
+
+  declare global {
+    interface Window {
+      simpleAlert: () => void;
+    }
+  }
+
+  window.simpleAlert = () => {
+    alert("simpleAlert");
+  };
+
+  function renderTasks() {
+    const columns = taskContext.getColumns();
+    const taskList = document.getElementById("task-list");
+    if (!taskList) throw new Error("task-list not found");
+    let ids: string[] = [];
+    taskList.innerHTML = columns
+      .map((column) => {
+        ids.push(`column-${column.label}`);
+        return `
+            <div id="column-${column.label}" class="column-container border border-gray-300 rounded-[24px] p-6 bg-[#E1E1E1] w-full md:w-[300px] lg:w-[400px]" column-label="${column.label}">
+                <div class="flex justify-between mb-4">
+                    <h3 id="column-title-${column.label}" class="text-2xl font-inter column-title focus:outline-none px-2 py-0.5 rounded-md focus:bg-[#F0F0F0]" data-column-id="${column.label}" contenteditable="true">${column.label}</h3>
+                    <div class="flex gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="cursor-pointer add-task-icon">
+                            <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                        </svg>
+                        <button class="delete-column-icon h-6">
+                          <img src="/delete.svg" alt="delete" class="w-6 h-6" />
+                        </button>
+                    </div>
+                </div>
+              <div class="flex flex-col gap-2 sortable-container min-h-12" data-column-label="${column.label}">
+                ${column.tasks
+                  .map(
+                    (task) => `
+                  <div class="task-item border border-gray-300 rounded-[24px] p-2 bg-[#ffffff] p-4 hover:translate-y-[-4px] hover:shadow-lg transition-transform duration-300" data-task-id="${task.id}" data-column-label="${column.label}">
+                    <div class="flex justify-between">
+                      <h4 class="task-title text-2xl w-2/3 overflow-hidden whitespace-nowrap focus:outline-none" contenteditable="true">${task.title}</h4>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="cursor-pointer edit-task-icon">
+                        <path fill="currentColor" d="M5 3c-1.11 0-2 .89-2 2v14c0 1.11.89 2 2 2h14c1.11 0 2-.89 2-2v-7h-2v7H5V5h7V3H5m12.78 1a.69.69 0 0 0-.48.2l-1.22 1.21l2.5 2.5L19.8 6.7c.26-.26.26-.7 0-.95L18.25 4.2c-.13-.13-.3-.2-.47-.2m-2.41 2.12L8 13.5V16h2.5l7.37-7.37l-2.5-2.5Z"/>
+                      </svg>
+                    </div>
+                    <p class="task-description text-sm py-2 pr-6 w-full focus:outline-none" contenteditable="true">${task.description}</p>
+                    <div class="flex gap-2 pt-2 mt-4">
+                      ${task.assignees
+                        ?.map(
+                          (assignee) => `
+                      <div class="w-10 h-10 rounded-full border border-gray-700 flex items-center justify-center relative group">
+                        <img src="${assignee.src}" alt="${assignee.name}" class="w-6 h-6" />
+                        <button class="remove-assignee-icon absolute -top-2 -right-2 bg-white rounded-full p-0.5 hidden group-hover:block">
+                          <img src="/close.svg" alt="remove" class="w-4 h-4" />
+                        </button>
+                      </div>
+                      `
+                        )
+                        .join("")}
+                      ${
+                        getUnassignedAssignee(task.assignees ?? []).length > 0
+                          ? `
+                      <div class="w-10 h-10 rounded-full border border-gray-700 flex items-center justify-center relative">
+                        <button class="add-assignee-icon">
+                          <img src="/plus.svg" alt="add" class="w-6 h-6" />
+                        </button>
+                        <div class="add-assignee-dropdown hidden absolute top-full left-0 mt-2 w-32 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                          <ul>
+                            ${getUnassignedAssignee(task.assignees ?? [])
+                              ?.map(
+                                (assignee) => `
+                              <li class="px-4 py-2 hover:bg-gray-100 cursor-pointer" data-assignee="${assignee.name}">
+                                <img src="${assignee.src}" alt="${assignee.name}" class="w-4 h-4 inline-block mr-2" />
+                                ${assignee.name}
+                              </li>
+                            `
+                              )
+                              .join("")}
+                          </ul>
+                        </div>
+                      </div>
+                      `
+                          : ""
+                      }
+                    </div>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `;
+      })
+      .join("");
+    ids?.forEach((id) => {
+      const element = document
+        .getElementById(id)
+        ?.querySelector(".sortable-container");
+      if (!element) return;
+      new Sortable(element as HTMLElement, {
+        group: "shared",
+        animation: 150,
+        emptyInsertThreshold: 20,
+        onEnd: (event) => {
+          const taskId = event.item.getAttribute("data-task-id");
+          const fromColumnLabel =
+            event.from.getAttribute("data-column-label") ?? "";
+          const toColumnLabel =
+            event.to.getAttribute("data-column-label") ?? "";
+          const newIndex = event.newIndex ?? 0;
+          taskContext.moveTask(
+            Number(taskId),
+            fromColumnLabel,
+            toColumnLabel,
+            newIndex
+          );
+        },
+      });
+    });
+  }
+
+  function setupColumn() {
+    const columns = document.querySelectorAll(".column-container");
+    columns.forEach((column) => {
+      setupColumnButton(column as HTMLElement);
+      setupTask(column as HTMLElement);
+    });
+  }
+
+  function setupColumnButton(column: HTMLElement) {
+    const addTaskIcon = column.querySelector(".add-task-icon");
+    addTaskIcon?.addEventListener("click", () => {
+      taskContext.addTask(
+        "Title",
+        "Description",
+        column.getAttribute("column-label") ?? ""
+      );
+    });
+    const deleteColumnIcon = column.querySelector(".delete-column-icon");
+    deleteColumnIcon?.addEventListener("click", () => {
+      taskContext.deleteColumn(column.getAttribute("column-label") ?? "");
+    });
+  }
+
+  function setupTask(column: HTMLElement) {
+    const tasks = column.querySelectorAll(".task-item");
+    tasks.forEach((task) => {
+      const taskId = task.getAttribute("data-task-id");
+      const columnLabel = column.getAttribute("column-label");
+      const title = task.querySelector(".task-title") as HTMLElement;
+      title?.addEventListener("blur", () => {
+        taskContext.updateTaskTitle(
+          Number(taskId ?? ""),
+          columnLabel ?? "",
+          title?.innerHTML ?? ""
+        );
+      });
+      title?.addEventListener("keydown", (e) => {
+        const event = e as KeyboardEvent;
+        if (event.key === "Enter") {
+          e.preventDefault();
+          title.blur();
+        }
+      });
+
+      const description = task.querySelector(
+        ".task-description"
+      ) as HTMLElement;
+      description?.addEventListener("blur", () => {
+        taskContext.updateTaskDescription(
+          Number(taskId ?? ""),
+          columnLabel ?? "",
+          description?.innerHTML ?? ""
+        );
+      });
+      description?.addEventListener("keydown", (e) => {
+        const event = e as KeyboardEvent;
+        if (event.key === "Enter") {
+          e.preventDefault();
+          description.blur();
+        }
+      });
+
+      const editTaskIcon = task.querySelector(".edit-task-icon");
+      editTaskIcon?.addEventListener("click", () => {
+        const modalWrapper = document.querySelector(".modal-wrapper");
+        if (modalWrapper) {
+          taskModalContext.openModal(taskId ?? "", columnLabel ?? "");
+        }
+      });
+
+      const removeAssigneeIcons = task.querySelectorAll(
+        ".remove-assignee-icon"
+      ) as NodeListOf<HTMLElement>;
+      removeAssigneeIcons.forEach((icon) => {
+        icon.addEventListener("click", () => {
+          const taskId = task.getAttribute("data-task-id");
+          const columnLabel = column.getAttribute("column-label");
+          const assigneeName = icon.parentElement?.querySelector("img")?.alt;
+          taskContext.removeAssignee(
+            Number(taskId ?? ""),
+            columnLabel ?? "",
+            assigneeName as Assignee["name"]
+          );
+        });
+      });
+
+      const addAssigneeIcon = task.querySelector(".add-assignee-icon");
+      addAssigneeIcon?.addEventListener("click", () => {
+        const addAssigneeSelect = task.querySelector(
+          ".add-assignee-select"
+        ) as HTMLSelectElement;
+        addAssigneeSelect.classList.toggle("hidden");
+      });
+
+      const addAssigneeSelect = task.querySelector(
+        ".add-assignee-select"
+      ) as HTMLSelectElement;
+      addAssigneeSelect?.addEventListener("change", () => {
+        const taskId = task.getAttribute("data-task-id");
+        const columnLabel = column.getAttribute("column-label");
+        const assigneeName = addAssigneeSelect.value;
+
+        taskContext.addAssignee(
+          Number(taskId ?? ""),
+          columnLabel ?? "",
+          assigneeName as Assignee["name"]
+        );
+      });
+    });
+  }
+
+  function setupColumnLabelEditing() {
+    const columnTitles = document.querySelectorAll(".column-title");
+    columnTitles.forEach((title) => {
+      title.addEventListener("blur", function (this: HTMLElement) {
+        const columnId = title.getAttribute("data-column-id");
+        const newTitle = title.textContent?.trim();
+        if (newTitle && columnId) {
+          taskContext.updateColumnLabel(columnId, newTitle);
+        }
+      });
+
+      title.addEventListener("keydown", function (this: HTMLElement, e: Event) {
+        const event = e as KeyboardEvent;
+        if (event.key === "Enter") {
+          e.preventDefault();
+          this.blur();
+        }
+      });
+    });
+  }
+
+  function setupAssigneeDropdown() {
+    const addAssigneeIcons = document.querySelectorAll(".add-assignee-icon");
+    addAssigneeIcons.forEach((icon) => {
+      icon.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const dropdown = icon.nextElementSibling;
+        if (!dropdown) return;
+        dropdown.classList.toggle("hidden");
+      });
+    });
+
+    const assigneeOptions = document.querySelectorAll(
+      ".add-assignee-dropdown li[data-assignee]"
+    );
+    assigneeOptions.forEach((option) => {
+      if (!option) return;
+      option?.addEventListener("click", () => {
+        const taskId = option
+          .closest(".task-item")
+          ?.getAttribute("data-task-id");
+        const columnLabel = option
+          .closest(".column-container")
+          ?.getAttribute("column-label");
+        const assigneeName = option.getAttribute("data-assignee");
+
+        taskContext.addAssignee(
+          Number(taskId ?? ""),
+          columnLabel ?? "",
+          assigneeName as Assignee["name"]
+        );
+
+        option.closest(".add-assignee-dropdown")?.classList.add("hidden");
+      });
+    });
+
+    // ドロップダウン外をクリックしたら閉じる
+    document.addEventListener("click", () => {
+      document
+        .querySelectorAll(".add-assignee-dropdown")
+        .forEach((dropdown) => {
+          dropdown.classList.add("hidden");
+        });
+    });
+  }
+
+  function rendering() {
+    renderTasks();
+    setupColumnLabelEditing();
+    setupColumn();
+    setupAssigneeDropdown();
+  }
+
+  // 初期レンダリング
+  rendering();
+
+  // listener
+  taskContext.addListener(rendering);
+</script>

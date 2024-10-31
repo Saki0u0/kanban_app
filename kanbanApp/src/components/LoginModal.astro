@@ -1,0 +1,73 @@
+<div
+  id="usernameModal"
+  class="fixed overflow-auto z-1 left-0 top-0 w-full h-screen bg-black bg-opacity-50"
+  style="display: none;"
+>
+  <div
+    class="bg-[#323232] rounded-lg mx-auto w-[80%] my-[5%] py-20 text-center px-40 max-lg:w-[70%] max-lg:px-20 max-md:w-[60%] max-md:px-10 max-sm:w-[80%] max-sm:px-5"
+  >
+    <div>
+      <h1 class=" font-henny text-white text-5xl">Welcome to “To Do List”</h1>
+      <img src="/ghost.png" alt="ghost" class="w-48 mx-auto my-6">
+      <h2 class ="font-henny text-white text-3xl mb-6">What’s your name ?</h2>
+      <div class="flex flex-col items-center">
+        <input
+          id="usernameInput"
+          class="p-4 ps-10
+        text-black border border-black focus:outline-none rounded-3xl mb-6 w-4/5"
+          type="text"
+          placeholder="input your name"
+        />
+        <button id="saveUserName" class="font-henny bg-[#EA6307] py-2 px-12 rounded-3xl text-2xl">Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const demo = false;
+  if (demo) localStorage.removeItem("username");
+
+  if (!localStorage.getItem("username")) {
+    const modal = document.getElementById("usernameModal");
+    if (modal) {
+      modal.style.display = "block";
+    }
+  } else {
+    setHeaderTitle(localStorage.getItem("username") || "");
+  }
+
+  function setHeaderTitle(name: string) {
+    const headerTitle = document.getElementById("headerTitle");
+    if (headerTitle) {
+      headerTitle.textContent = `${name}'s To Do List`;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const button = document.getElementById("saveUserName");
+    const input = document.getElementById("usernameInput");
+
+    function saveUserName() {
+      //@ts-ignore
+      // localStorage.setItem("username", input?.value);
+      const name = input?.value;
+      const modal = document.getElementById("usernameModal");
+      if (name) {
+        localStorage.setItem("username", name);
+        setHeaderTitle(name);
+      }
+      if (modal) {
+        modal.style.display = "none";
+      }
+    }
+
+    button?.addEventListener("click", saveUserName);
+
+    input?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        saveUserName();
+      }
+    });
+  });
+</script>
